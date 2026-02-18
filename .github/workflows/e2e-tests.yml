@@ -259,7 +259,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        operating-system: [ubuntu-22.04, windows-latest, macos-13]
+        operating-system: [ubuntu-22.04, windows-latest, macos-15-intel]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -284,7 +284,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        operating-system: [ubuntu-22.04, windows-latest, macos-13]
+        operating-system: [ubuntu-22.04, windows-latest, macos-15-intel]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -309,7 +309,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        operating-system: [ubuntu-22.04, windows-latest, macos-13]
+        operating-system: [ubuntu-22.04, windows-latest, macos-15-intel]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -334,7 +334,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        operating-system: [ubuntu-22.04, windows-latest, macos-13]
+        operating-system: [ubuntu-22.04, windows-latest, macos-15-intel]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
