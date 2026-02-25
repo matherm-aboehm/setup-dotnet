@@ -2,13 +2,13 @@ import {readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import * as cache from '@actions/cache';
 import * as core from '@actions/core';
-import * as glob from '@actions/glob';
 
 import {getNuGetFolderPath} from './cache-utils';
 import {lockFilePatterns, State, Outputs} from './constants';
 
 export const restoreCache = async (cacheDependencyPath?: string) => {
   const lockFilePath = cacheDependencyPath || (await findLockFile());
+  const glob = await import('@actions/glob');
   const fileHash = await glob.hashFiles(lockFilePath);
   if (!fileHash) {
     throw new Error(
