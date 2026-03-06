@@ -12,7 +12,19 @@ on:
       - '**.md'
 
 jobs:
+  enforce-all-checks:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: GitHub Checks
+        uses: poseidon/wait-for-status-checks@v0.6.0
+        with:
+          match_pattern: '^Check dist/.*'
+          token: ${{ secrets.GITHUB_TOKEN }}
   test-setup-multiple-versions:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -43,6 +55,7 @@ jobs:
         shell: pwsh
         run: __tests__/verify-dotnet.ps1 -Patterns "^8.0.416$", "^9.0.308$", "^10.0.101$", "^8.0"
   test-setup-full-version:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -78,6 +91,7 @@ jobs:
         shell: pwsh
         run: __tests__/verify-dotnet.ps1 -Patterns "^10.0.101$", "^9.0.308$" -CheckNugetConfig
   test-setup-without-patch-version:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -109,6 +123,7 @@ jobs:
         shell: pwsh
         run: __tests__/verify-dotnet.ps1 -Patterns "^9.0", "^10.0"
   test-setup-prerelease-version:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -135,6 +150,7 @@ jobs:
         shell: pwsh
         run: __tests__/verify-dotnet.ps1 -Patterns "10.0.100-preview.7.25380.108"
   test-setup-latest-patch-version:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -166,6 +182,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^9.0", "^10.0"
 
   test-ABCxx-syntax:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -194,6 +211,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10\.0\.1\d{2}"
 
   test-setup-with-wildcard:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -225,6 +243,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^9.0", "^10.0"
 
   test-setup-global-json-specified-and-version:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -258,6 +277,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^9.0", "^10.0"
 
   test-setup-global-json-only:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -290,6 +310,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10.0"
 
   test-global-json-with-comments:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -322,6 +343,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10.0"
 
   test-setup-with-dotnet-quality:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -351,6 +373,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10\.0\.\d+-"
 
   test-setup-with-cache:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -389,6 +412,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10.0"
 
   test-setup-with-cache-dependency-path:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -425,6 +449,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10.0"
 
   test-dotnet-version-output-during-single-version-installation:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -458,6 +483,7 @@ jobs:
           if (-not ($version -eq '${{steps.step1.outputs.dotnet-version}}')) { throw "Unexpected output value" }
 
   test-dotnet-version-output-during-multiple-version-installation:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -493,6 +519,7 @@ jobs:
           if (-not ($version -eq '${{steps.step2.outputs.dotnet-version}}')) { throw "Unexpected output value" }
 
   test-proxy:
+    needs: enforce-all-checks
     runs-on: ubuntu-22.04
     container:
       image: ubuntu:22.04
@@ -533,6 +560,7 @@ jobs:
           __tests__/verify-dotnet.ps1 -Patterns "^10.0" -CheckNugetConfig
 
   test-bypass-proxy:
+    needs: enforce-all-checks
     runs-on: ubuntu-latest
     env:
       https_proxy: http://no-such-proxy:3128
@@ -555,6 +583,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^10.0.101$" -CheckNugetConfig
 
   test-sequential-version-installation:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -592,6 +621,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^${{ matrix.lower-version }}$", "^${{ matrix.higher-version }}$"
 
   test-setup-with-workloads-input:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false
@@ -625,6 +655,7 @@ jobs:
         run: __tests__/verify-dotnet.ps1 -Patterns "^9\.0"
 
   test-setup-with-architecture-input:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
