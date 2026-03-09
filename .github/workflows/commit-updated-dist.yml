@@ -1,0 +1,168 @@
+name: Commit updated dist/
+
+on:
+  # add push trigger if not merged to main, see:
+  # https://github.com/orgs/community/discussions/25746#discussioncomment-9666601
+  # push:
+  workflow_run:
+    workflows:
+      - 'Check dist/'
+    types:
+      - completed
+    branches-ignore:
+      - main
+#  workflow_dispatch:
+#    inputs:
+#      run_id:
+#        required: true
+#      head_sha:
+#        required: true
+#      branch:
+#        required: true
+
+jobs:
+  prepare:
+    #  && startsWith(github.event.workflow_run.head_branch, 'dependabot/npm_and_yarn/')
+    if: >-
+      ${{ github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      # Required by gh pr view:
+      contents: read
+    outputs:
+      matrix: ${{ steps.pr-matrix.outputs.matrix }}
+    steps:
+      # https://github.com/orgs/community/discussions/25220#discussioncomment-11285971
+      - name: Create matrix for commit-updated-dist job
+        id: pr-matrix
+        env:
+          # Best practice for scripts is to reference via ENV at runtime. Avoid using the expression syntax in the script content directly:
+          PR_ARRAY: ${{ toJson(github.event.workflow_run.pull_requests) }}
+          # Token required for GH CLI:
+          GH_TOKEN: ${{ github.token }}
+          PR_TARGET_REPO: ${{ github.repository }}
+          # If the PR is from a fork, prefix it with `<owner-login>:`, otherwise only the PR branch name is relevant:
+          PR_BRANCH: |-
+            ${{
+              (github.event.workflow_run.head_repository.owner.login != github.event.workflow_run.repository.owner.login)
+                && format('{0}:{1}', github.event.workflow_run.head_repository.owner.login, github.event.workflow_run.head_branch)
+                || github.event.workflow_run.head_branch
+            }}
+        run: |
+          if [ $(echo "${PR_ARRAY}" | jq 'length') -gt 0 ]; then
+            echo "matrix<<EOF" >> "${GITHUB_OUTPUT}"
+            echo "{\"pull_requests\":${PR_ARRAY}}" >> "${GITHUB_OUTPUT}"
+            echo "EOF" >> "${GITHUB_OUTPUT}"
+          else
+            echo "matrix<<EOF" >> "${GITHUB_OUTPUT}"
+            jq_format='"{\"pull_requests\":[{\"base\":{\"ref\":\"\(.baseRefName)\",\"sha\":\"\(.baseRefOid)\"},'
+            jq_format+='\"head\":{\"ref\":\"\(.headRefName)\",\"repo\":\(.headRepository | {"node_id":.id,name}),\"sha\":\"\(.headRefOid)\"},'
+            jq_format+='\"node_id\":\"\(.id)\",\"number\":\(.number),\"url\":\"\(.url)\"}]}"'
+            gh pr view --repo "${PR_TARGET_REPO}" "${PR_BRANCH}" \
+                --json 'baseRefName,baseRefOid,headRefName,headRefOid,headRepository,id,number,url' \
+                --jq "${jq_format}" \
+                >> "${GITHUB_OUTPUT}"
+            echo "EOF" >> "${GITHUB_OUTPUT}"
+          fi
+
+  commit-updated-dist:
+    #  && startsWith(github.event.workflow_run.head_branch, 'dependabot/npm_and_yarn/')
+    if: >-
+      ${{ github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # https://stackoverflow.com/questions/59977364/github-actions-how-use-strategy-matrix-with-script
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Wait for run ${{ github.event.workflow_run.id }} and other checks
+        run: gh run watch $RUN_ID > /dev/null 2>&1
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+      - name: Checkout
+        uses: actions/checkout@v5
+        # Include the pull request ref in the checkout action to prevent merge commit
+        # https://github.com/actions/checkout?tab=readme-ov-file#checkout-pull-request-head-commit-instead-of-merge-commit
+        with:
+          ref: ${{ matrix.pull_requests.head.sha || github.event.workflow_run.head_sha }}
+      - name: Clear dist
+        run: git rm -r dist/**
+      - name: Download artifact
+        uses: actions/download-artifact@v7
+        id: download-artifact
+        with:
+          name: dist
+          path: './dist'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Stage new dist files
+        run: git add dist
+      - name: Generate GitHub App token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.AUTO_COMMIT_APP_ID }}
+          private-key: ${{ secrets.AUTO_COMMIT_PRIVATE_KEY }}
+          # Give the new token write permission to commit and push the
+          # added or changed files to the repository.
+          permission-contents: write
+      - name: Commit changed files
+        # only run if artifact did exist and was downloaded
+        if: ${{ steps.download-artifact.outcome == 'success' }}
+        # https://stackoverflow.com/questions/79762991/sign-commits-made-by-github-actions-workflow
+        uses: planetscale/ghcommit-action@v0.2.20
+        id: commit
+        with:
+          commit_message: 'check failure fix [dependabot skip]'
+          repo: ${{ github.event.workflow_run.head_repository.full_name }}
+          branch: ${{ matrix.pull_requests.head.ref || github.event.workflow_run.head_branch }}
+          file_pattern: dist
+        # alternatively uncomment the following and next step, if no signing is required
+        # to use the App's bot user name and email, see:
+        # https://github.com/marketplace/actions/create-github-app-token#create-a-git-committer-string-for-an-app-installation
+        #run: |
+        #  git config --local user.name "dependabot[bot]"
+        #  git config --local user.email "<49699333+dependabot[bot]@users.noreply.github.com>"
+        #  git commit -m "check failure fix [dependabot skip]" --author="${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>"
+        #  git status
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      #- name: Push to PR branch
+      #  # only run if artifact did exist and was downloaded
+      #  if: ${{ steps.download-artifact.outcome == 'success' }}
+      #  uses: ad-m/github-push-action@v1
+      #  with:
+      #    github_token: ${{ steps.app-token.outputs.token }}
+      #    repository: ${{ github.event.workflow_run.head_repository.full_name }}
+      #    branch: ${{ matrix.pull_requests.head.ref || github.event.workflow_run.head_branch }}
+
+      # currently checks can't re-run themself when this workflow was triggered manually by GH API or CLI,
+      # because it would run in the same context as of the calling workflow,
+      # but it should re-run automatically when this workflow was triggered by workflow_run
+      #- name: Re-run call-check-dist on new commit
+      #  if: ${{ steps.commit.outcome == 'success' }}
+      #  # can't use re-run job from gh CLI as it would use the wrong commit SHA:
+      #  # https://medium.com/@aarne.laur/retry-failed-github-actions-8661e7601c66
+      #  # https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs?tool=cli
+      #  # instead directly use check-runs REST API?
+      #  # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#create-a-check-run
+      #  run: |
+      #    gh api --method POST \
+      #      -H "Accept: application/vnd.github+json" \
+      #      -H "X-GitHub-Api-Version: 2022-11-28" \
+      #      /repos/${{ github.repository }}/check-runs \
+      #      -f 'name=${{ github.workflow }}' \
+      #      -f 'head_sha=${{ steps.commit.outputs.commit-hash }}' \
+      #      -f 'status=queued'
+      #  env:
+      #    GITHUB_SHA: ${{ steps.commit.outputs.commit-hash }}
+      #    GH_REPO: ${{ github.repository }}
+      #    GH_TOKEN: ${{ github.token }}
