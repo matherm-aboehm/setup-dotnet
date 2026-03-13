@@ -12,7 +12,19 @@ on:
       - '**.md'
 
 jobs:
+  enforce-all-checks:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: GitHub Checks
+        uses: poseidon/wait-for-status-checks@v0.6.0
+        with:
+          match_pattern: '^Check dist/.*'
+          token: ${{ secrets.GITHUB_TOKEN }}
   setup-version:
+    needs: enforce-all-checks
     runs-on: ${{ matrix.operating-system }}
     strategy:
       fail-fast: false

@@ -17,3 +17,26 @@ jobs:
     uses: actions/reusable-workflows/.github/workflows/check-dist.yml@main
     with:
       node-version: '24'
+#  call-commit-updated-dist:
+#    #  && startsWith(github.head_ref, 'dependabot/npm_and_yarn/')
+#    if: ${{failure() && needs.call-check-dist.result == 'failure'}}
+#    needs: call-check-dist
+#    runs-on: ubuntu-latest
+
+#    steps:
+#      - uses: softwareforgood/check-artifact-v4-existence@v0.4.1
+#        id: dist-artifact
+#        with:
+#          name: dist
+#      - name: Call commit-updated-dist.yml
+#        # only run if artifact does exist and can be downloaded
+#        if: ${{ steps.dist-artifact.outputs.exists }}
+#        run: |
+#          gh workflow run commit-updated-dist.yml \
+#            -r '${{ github.head_ref || github.ref_name }}' \
+#            -f run_id=${{ github.run_id }} \
+#            -f head_sha=${{ github.event.pull_request.head.sha }} \
+#            -f 'branch=${{ github.head_ref || github.ref_name }}'
+#        env:
+#          GH_REPO: ${{ github.repository }}
+#          GH_TOKEN: ${{ github.token }}
